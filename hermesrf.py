@@ -8,6 +8,10 @@ from flask import Flask, request
 # Constants
 AES_KEY_SIZE = 16
 
+# Define the AES encryption key
+# A generated AES 128 bit key is provided, but change this for field use
+AES_KEY = hashlib.sha256(b"d2a7a6abeb88d67684c8abb8fde01316").digest()[:AES_KEY_SIZE]
+
 # Flask app setup
 app = Flask(__name__)
 
@@ -60,8 +64,7 @@ def broadcast():
             '''
 
         # Encrypt the message
-        key = hashlib.sha256(b"your_secret_key").digest()[:AES_KEY_SIZE]
-        encrypted_message = encrypt_message(key, message)
+        encrypted_message = encrypt_message(AES_KEY, message)
 
         # Send the encrypted message via FLDigi
         fldigi_client.text.clear_tx()  # Clear previous transmit text
