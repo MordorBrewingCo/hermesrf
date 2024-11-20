@@ -126,7 +126,7 @@ def broadcast():
         print(f"Message sent via FLDigi: {encrypted_message}")
 
         return f'''
-        <h1>Message Broadcasted Successfully!</h1>
+        <h1>Message Broadcast Successfully!</h1>
         <p>Your message: {message}</p>
         <p>Encrypted message: {encrypted_message}</p>
         <a href="/">Send Another Message</a>
