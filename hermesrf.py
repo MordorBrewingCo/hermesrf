@@ -1,8 +1,14 @@
+import base64
 import hashlib
+import logging
 import os
+import time
 
 import pyfldigi  # Correctly using the pyfldigi library
 from Crypto.Cipher import AES
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from flask import Flask, request
 
 # Constants
@@ -17,6 +23,53 @@ app = Flask(__name__)
 
 # Initialize pyfldigi
 fldigi_client = pyfldigi.Client()
+
+# Initialize logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+# AES decryption function
+def decrypt_message(encrypted_message, key):
+    try:
+        # Decode the base64 encoded message
+        encrypted_data = base64.b64decode(encrypted_message)
+        # Extract the IV and ciphertext
+        iv = encrypted_data[:16]
+        ciphertext = encrypted_data[16:]
+        # Initialize the cipher
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+        decryptor = cipher.decryptor()
+        # Decrypt the ciphertext
+        padded_plaintext = decryptor.update(ciphertext) + decryptor.finalize()
+        # Unpad the plaintext
+        unpadder = padding.PKCS7(128).unpadder()
+        plaintext = unpadder.update(padded_plaintext) + unpadder.finalize()
+        return plaintext.decode('utf-8')
+    except Exception as e:
+        logger.error(f"Decryption failed: {e}")
+        return None
+
+
+# Listener thread function
+def fldigi_listener(fldigi_client, aes_key):
+    logger.info("Starting fldigi listener thread...")
+    while True:
+        try:
+            # Retrieve received text from fldigi
+            received_text = fldigi_client.text.get_rx()
+            if received_text:
+                logger.info(f"Received message: {received_text}")
+                # Attempt to decrypt the message
+                decrypted_message = decrypt_message(received_text, aes_key)
+                if decrypted_message:
+                    logger.info(f"Decrypted message: {decrypted_message}")
+                else:
+                    logger.warning("Failed to decrypt the received message.")
+            time.sleep(1)  # Adjust the sleep interval as needed
+        except Exception as e:
+            logger.error(f"Error in fldigi listener: {e}")
+            time.sleep(5)  # Wait before retrying in case of an error
 
 
 # Encryption helper function
