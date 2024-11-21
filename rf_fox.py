@@ -56,8 +56,7 @@ def fldigi_listener():
     logger.info("Starting fldigi listener thread...")
     while True:
         try:
-            # Retrieve received text using Text.get_rx()
-            received_text = fldigi_client.text.get_rx_data()  # Correct method: Text.get_rx()
+            received_text = fldigi_client.text.get_rx_data()
             if received_text:
                 timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
                 messages["received"].append(
@@ -78,8 +77,16 @@ def encrypt_message(key, message):
     return base64.b64encode(encrypted).decode()
 
 
-@app.route("/", methods=["GET"])
+@app.route("/", methods=["GET", "POST"])
 def index():
+    current_mode = fldigi_client.modem.name
+    modes = fldigi_client.modem.names
+
+    if request.method == "POST":
+        new_mode = request.form.get("mode")
+        if new_mode and new_mode in modes:
+            fldigi_client.modem.name = new_mode
+
     return render_template_string(
         '''
         <!doctype html>
@@ -97,6 +104,17 @@ def index():
                 <br><br>
                 <input type="submit" value="Broadcast">
             </form>
+            <h2>Operating Mode</h2>
+            <form method="POST" action="/">
+                <label for="mode">Select Mode:</label>
+                <select id="mode" name="mode">
+                    {% for mode in modes %}
+                    <option value="{{ mode }}" {% if mode == current_mode %}selected{% endif %}>{{ mode }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit">Change Mode</button>
+            </form>
+            <h2>Current Mode: {{ current_mode }}</h2>
             <h2>Received Messages</h2>
             <ul>
             {% for msg in messages["received"] %}
@@ -113,6 +131,8 @@ def index():
         </html>
         ''',
         messages=messages,
+        modes=modes,
+        current_mode=current_mode,
     )
 
 
@@ -149,4 +169,3 @@ if __name__ == "__main__":
     listener_thread = threading.Thread(target=fldigi_listener, daemon=True)
     listener_thread.start()
     app.run(host="0.0.0.0", port=5000, debug=True)
-
