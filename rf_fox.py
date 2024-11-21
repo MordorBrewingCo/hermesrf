@@ -88,7 +88,7 @@ def index():
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>AirChat Broadcaster</title>
+            <title>RF Fox</title>
         </head>
         <body>
             <h1>Broadcast a Message</h1>
