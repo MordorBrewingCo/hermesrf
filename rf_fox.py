@@ -1,0 +1,151 @@
+import base64
+import hashlib
+import logging
+import os
+import threading
+import time
+from xmlrpc.client import ServerProxy
+
+import pyfldigi
+from Crypto.Cipher import AES
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from flask import Flask, request, render_template_string
+
+# XML-RPC connection to fldigi
+server = ServerProxy("http://localhost:7362")
+
+# Constants
+AES_KEY_SIZE = 16
+AES_KEY = hashlib.sha256(b"d2a7a6abeb88d67684c8abb8fde01316").digest()[:AES_KEY_SIZE]
+
+# Flask app setup
+app = Flask(__name__)
+
+# Initialize pyfldigi
+fldigi_client = pyfldigi.Client()
+
+# Initialize logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Store messages with timestamps
+messages = {"received": [], "transmitted": []}
+
+
+# AES decryption function
+def decrypt_message(encrypted_message, key):
+    try:
+        encrypted_data = base64.b64decode(encrypted_message)
+        iv = encrypted_data[:16]
+        ciphertext = encrypted_data[16:]
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+        decryptor = cipher.decryptor()
+        padded_plaintext = decryptor.update(ciphertext) + decryptor.finalize()
+        unpadder = padding.PKCS7(128).unpadder()
+        plaintext = unpadder.update(padded_plaintext) + unpadder.finalize()
+        return plaintext.decode('utf-8')
+    except Exception as e:
+        logger.error(f"Decryption failed: {e}")
+        return None
+
+
+# Listener thread function
+def fldigi_listener():
+    logger.info("Starting fldigi listener thread...")
+    while True:
+        try:
+            # Retrieve received text using Text.get_rx()
+            received_text = fldigi_client.text.get_rx_data()  # Correct method: Text.get_rx()
+            if received_text:
+                timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+                messages["received"].append(
+                    {"message": received_text, "timestamp": timestamp}
+                )
+                logger.info(f"Received message: {received_text}")
+            time.sleep(1)  # Adjust the sleep interval as needed
+        except Exception as e:
+            logger.error(f"Error in fldigi listener: {e}")
+            time.sleep(5)
+
+
+# Encryption helper function
+def encrypt_message(key, message):
+    iv = os.urandom(AES.block_size)
+    cipher = AES.new(key, AES.MODE_CFB, iv)
+    encrypted = iv + cipher.encrypt(message.encode())
+    return base64.b64encode(encrypted).decode()
+
+
+@app.route("/", methods=["GET"])
+def index():
+    return render_template_string(
+        '''
+        <!doctype html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>AirChat Broadcaster</title>
+        </head>
+        <body>
+            <h1>Broadcast a Message</h1>
+            <form method="POST" action="/broadcast">
+                <label for="message">Message:</label>
+                <input type="text" id="message" name="message" required>
+                <br><br>
+                <input type="submit" value="Broadcast">
+            </form>
+            <h2>Received Messages</h2>
+            <ul>
+            {% for msg in messages["received"] %}
+                <li>{{ msg.timestamp }} - {{ msg.message }}</li>
+            {% endfor %}
+            </ul>
+            <h2>Transmitted Messages</h2>
+            <ul>
+            {% for msg in messages["transmitted"] %}
+                <li>{{ msg.timestamp }} - {{ msg.message }}</li>
+            {% endfor %}
+            </ul>
+        </body>
+        </html>
+        ''',
+        messages=messages,
+    )
+
+
+@app.route("/broadcast", methods=["POST"])
+def broadcast():
+    try:
+        message = request.form.get("message")
+        if not message:
+            return '''
+            <h1>Error: Message cannot be empty!</h1>
+            <a href="/">Try Again</a>
+            '''
+        encrypted_message = encrypt_message(AES_KEY, message)
+        fldigi_client.text.clear_tx()
+        fldigi_client.text.add_tx(encrypted_message)
+        fldigi_client.main.tx()
+
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        messages["transmitted"].append(
+            {"message": encrypted_message, "timestamp": timestamp}
+        )
+        return '''
+        <h1>Message Broadcast Successfully!</h1>
+        <a href="/">Back</a>
+        '''
+    except Exception as e:
+        return f'''
+        <h1>Error: {str(e)}</h1>
+        <a href="/">Try Again</a>
+        '''
+
+
+if __name__ == "__main__":
+    listener_thread = threading.Thread(target=fldigi_listener, daemon=True)
+    listener_thread.start()
+    app.run(host="0.0.0.0", port=5000, debug=True)
