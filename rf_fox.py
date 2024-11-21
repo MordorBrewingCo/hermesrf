@@ -8,9 +8,6 @@ from xmlrpc.client import ServerProxy
 
 import pyfldigi
 from Crypto.Cipher import AES
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import padding
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from flask import Flask, request, render_template_string
 
 # XML-RPC connection to fldigi
@@ -38,17 +35,22 @@ messages = {"received": [], "transmitted": []}
 def decrypt_message(encrypted_message, key):
     try:
         encrypted_data = base64.b64decode(encrypted_message)
-        iv = encrypted_data[:16]
-        ciphertext = encrypted_data[16:]
-        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
-        decryptor = cipher.decryptor()
-        padded_plaintext = decryptor.update(ciphertext) + decryptor.finalize()
-        unpadder = padding.PKCS7(128).unpadder()
-        plaintext = unpadder.update(padded_plaintext) + unpadder.finalize()
+        iv = encrypted_data[:AES.block_size]
+        ciphertext = encrypted_data[AES.block_size:]
+        cipher = AES.new(key, AES.MODE_CFB, iv)
+        plaintext = cipher.decrypt(ciphertext)
         return plaintext.decode('utf-8')
     except Exception as e:
         logger.error(f"Decryption failed: {e}")
         return None
+
+
+# AES encryption function
+def encrypt_message(key, message):
+    iv = os.urandom(AES.block_size)
+    cipher = AES.new(key, AES.MODE_CFB, iv)
+    encrypted = iv + cipher.encrypt(message.encode())
+    return base64.b64encode(encrypted).decode()
 
 
 # Listener thread function
@@ -67,14 +69,6 @@ def fldigi_listener():
         except Exception as e:
             logger.error(f"Error in fldigi listener: {e}")
             time.sleep(5)
-
-
-# Encryption helper function
-def encrypt_message(key, message):
-    iv = os.urandom(AES.block_size)
-    cipher = AES.new(key, AES.MODE_CFB, iv)
-    encrypted = iv + cipher.encrypt(message.encode())
-    return base64.b64encode(encrypted).decode()
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -123,9 +117,13 @@ def index():
             </ul>
             <h2>Transmitted Messages</h2>
             <ul>
-            {% for msg in messages["transmitted"] %}
-                <li>{{ msg.timestamp }} - {{ msg.message }}</li>
-            {% endfor %}
+                {% for msg in messages["transmitted"] %}
+                    <li>
+                        <strong>Timestamp:</strong> {{ msg.timestamp }}<br>
+                        <strong>Encrypted:</strong> {{ msg.encrypted }}<br>
+                        <strong>Decrypted:</strong> {{ msg.decrypted }}
+                    </li>
+                {% endfor %}
             </ul>
         </body>
         </html>
@@ -145,14 +143,25 @@ def broadcast():
             <h1>Error: Message cannot be empty!</h1>
             <a href="/">Try Again</a>
             '''
+        # Encrypt the message
         encrypted_message = encrypt_message(AES_KEY, message)
+
+        # Decrypt the message for storing alongside the ciphertext
+        decrypted_message = decrypt_message(encrypted_message, AES_KEY)
+
+        # Transmit the encrypted message via fldigi
         fldigi_client.text.clear_tx()
         fldigi_client.text.add_tx(encrypted_message)
         fldigi_client.main.tx()
 
+        # Store both encrypted and decrypted messages
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
         messages["transmitted"].append(
-            {"message": encrypted_message, "timestamp": timestamp}
+            {
+                "encrypted": encrypted_message,
+                "decrypted": decrypted_message,
+                "timestamp": timestamp,
+            }
         )
         return '''
         <h1>Message Broadcast Successfully!</h1>
