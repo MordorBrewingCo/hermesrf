@@ -18,7 +18,7 @@ AES_KEY_SIZE = 16
 AES_KEY = hashlib.sha256(b"d2a7a6abeb88d67684c8abb8fde01316").digest()[:AES_KEY_SIZE]
 
 # Flask app setup
-app = Flask(__name__)
+app = Flask(__name__)  # Ensure this line is present before defining routes
 
 # Initialize pyfldigi
 fldigi_client = pyfldigi.Client()
@@ -96,6 +96,12 @@ def index():
                 <label for="message">Message:</label>
                 <input type="text" id="message" name="message" required>
                 <br><br>
+                <label for="encryption">Send as:</label>
+                <select id="encryption" name="encryption">
+                    <option value="encrypted" selected>Encrypted</option>
+                    <option value="unencrypted">Unencrypted</option>
+                </select>
+                <br><br>
                 <input type="submit" value="Broadcast">
             </form>
             <h2>Operating Mode</h2>
@@ -120,8 +126,12 @@ def index():
                 {% for msg in messages["transmitted"] %}
                     <li>
                         <strong>Timestamp:</strong> {{ msg.timestamp }}<br>
-                        <strong>Encrypted:</strong> {{ msg.encrypted }}<br>
-                        <strong>Decrypted:</strong> {{ msg.decrypted }}
+                        {% if msg.encrypted %}
+                            <strong>Encrypted:</strong> {{ msg.encrypted }}<br>
+                            <strong>Decrypted:</strong> {{ msg.decrypted }}
+                        {% else %}
+                            <strong>Message:</strong> {{ msg.decrypted }}
+                        {% endif %}
                     </li>
                 {% endfor %}
             </ul>
@@ -138,31 +148,48 @@ def index():
 def broadcast():
     try:
         message = request.form.get("message")
+        encryption_choice = request.form.get("encryption")
         if not message:
             return '''
             <h1>Error: Message cannot be empty!</h1>
             <a href="/">Try Again</a>
             '''
-        # Encrypt the message
-        encrypted_message = encrypt_message(AES_KEY, message)
 
-        # Decrypt the message for storing alongside the ciphertext
-        decrypted_message = decrypt_message(encrypted_message, AES_KEY)
-
-        # Transmit the encrypted message via fldigi
-        fldigi_client.text.clear_tx()
-        fldigi_client.text.add_tx(encrypted_message)
-        fldigi_client.main.tx()
-
-        # Store both encrypted and decrypted messages
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-        messages["transmitted"].append(
-            {
-                "encrypted": encrypted_message,
-                "decrypted": decrypted_message,
-                "timestamp": timestamp,
-            }
-        )
+        if encryption_choice == "unencrypted":
+            # Send the message unencrypted
+            fldigi_client.text.clear_tx()
+            fldigi_client.text.add_tx(message)
+            fldigi_client.main.tx()
+
+            # Store the unencrypted message
+            messages["transmitted"].append(
+                {
+                    "encrypted": None,
+                    "decrypted": message,
+                    "timestamp": timestamp,
+                }
+            )
+        else:
+            # Encrypt the message
+            encrypted_message = encrypt_message(AES_KEY, message)
+
+            # Decrypt the message for storing alongside the ciphertext
+            decrypted_message = decrypt_message(encrypted_message, AES_KEY)
+
+            # Transmit the encrypted message via fldigi
+            fldigi_client.text.clear_tx()
+            fldigi_client.text.add_tx(encrypted_message)
+            fldigi_client.main.tx()
+
+            # Store both encrypted and decrypted messages
+            messages["transmitted"].append(
+                {
+                    "encrypted": encrypted_message,
+                    "decrypted": decrypted_message,
+                    "timestamp": timestamp,
+                }
+            )
         return '''
         <h1>Message Broadcast Successfully!</h1>
         <a href="/">Back</a>
