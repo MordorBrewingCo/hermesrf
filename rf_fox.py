@@ -94,7 +94,7 @@ def index():
             <h1>Broadcast a Message</h1>
             <form method="POST" action="/broadcast">
                 <label for="message">Message:</label>
-                <input type="text" id="message" name="message" required>
+                <textarea id="message" name="message" required style="resize: both; width: 100%; height: 100px;"></textarea>
                 <br><br>
                 <label for="encryption">Send as:</label>
                 <select id="encryption" name="encryption">
