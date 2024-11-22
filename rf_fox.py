@@ -61,10 +61,31 @@ def fldigi_listener():
             received_text = fldigi_client.text.get_rx_data()
             if received_text:
                 timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-                messages["received"].append(
-                    {"message": received_text, "timestamp": timestamp}
-                )
-                logger.info(f"Received message: {received_text}")
+
+                # Attempt to decrypt the message
+                try:
+                    decrypted_text = decrypt_message(received_text, AES_KEY)
+                    if decrypted_text:
+                        messages["received"].append(
+                            {
+                                "message": received_text,  # Encrypted
+                                "decrypted": decrypted_text,  # Decrypted
+                                "timestamp": timestamp,
+                            }
+                        )
+                        logger.info(f"Decrypted message: {decrypted_text}")
+                    else:
+                        # Treat as plaintext if decryption fails
+                        messages["received"].append(
+                            {"message": received_text, "decrypted": None, "timestamp": timestamp}
+                        )
+                        logger.info(f"Plaintext message received: {received_text}")
+                except Exception as e:
+                    logger.error(f"Error decrypting message: {e}")
+                    # Treat as plaintext if decryption throws an error
+                    messages["received"].append(
+                        {"message": received_text, "decrypted": None, "timestamp": timestamp}
+                    )
             time.sleep(1)  # Adjust the sleep interval as needed
         except Exception as e:
             logger.error(f"Error in fldigi listener: {e}")
