@@ -1,42 +1,51 @@
-RF Fox: Secure Message Broadcasting with Fldigi
+# RF Fox: Secure Message Broadcasting with Fldigi
 
 RF Fox is a Flask-based application that enables secure message broadcasting using the Fldigi software modem. Messages can be encrypted using AES encryption or sent unencrypted, depending on user preference. It also includes a web interface for managing messages and operating modes.
-Features
 
-    Secure Broadcasting: Messages can be sent encrypted with AES-128 encryption.
-    Unencrypted Option: Allows sending plain-text messages when encryption is not required.
-    Web Interface: Includes an intuitive web UI for:
-        Sending messages
-        Viewing transmitted and received messages
-        Switching between operating modes supported by Fldigi
-    Real-Time Communication: Uses the Fldigi XML-RPC interface for communication with the modem.
+## Features
 
-Requirements
+- **Secure Broadcasting**: Messages can be sent encrypted with AES-128 encryption.
+- **Unencrypted Option**: Allows sending plain-text messages when encryption is not required.
+- **Web Interface**: Includes an intuitive web UI for:
+  - Sending messages
+  - Viewing transmitted and received messages
+  - Switching between operating modes supported by Fldigi
+- **Real-Time Communication**: Uses the Fldigi XML-RPC interface for communication with the modem.
 
-    Python 3.6+
-    Fldigi (configured with XML-RPC enabled)
-    Required Python Libraries:
-        pyfldigi
-        flask
-        pycryptodome
+---
 
-Installation
-1. Install Fldigi
+## Requirements
+
+- Python 3.6+
+- Fldigi (configured with XML-RPC enabled)
+- Required Python Libraries:
+  - `pyfldigi`
+  - `flask`
+  - `pycryptodome`
+
+---
+
+## Installation
+
+### 1. Install Fldigi
 
 Ensure that Fldigi is installed on your system and XML-RPC is enabled. To enable XML-RPC in Fldigi:
 
-    Open Fldigi.
-    Navigate to Configure > Misc > Services.
-    Enable the XML-RPC server and set the port (default is 7362).
+1. Open Fldigi.
+2. Navigate to **Configure > Misc > Services**.
+3. Enable the **XML-RPC server** and set the port (default is `7362`).
 
-2. Clone the Repository
+### 2. Clone the Repository
 
 Clone this repository to your local machine:
 
+```bash
 git clone https://github.com/your-username/rf-fox.git
 cd rf-fox
+```
 
-3. Install Python Dependencies
+
+### 3. Install Python Dependencies
 
 Install the required Python libraries using pip:
 
