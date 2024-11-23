@@ -4,14 +4,10 @@ import logging
 import os
 import threading
 import time
-from xmlrpc.client import ServerProxy
 
 import pyfldigi
 from Crypto.Cipher import AES
 from flask import Flask, request, render_template_string
-
-# XML-RPC connection to fldigi
-server = ServerProxy("http://localhost:7362")
 
 # Constants
 AES_KEY_SIZE = 16
@@ -226,4 +222,3 @@ if __name__ == "__main__":
     listener_thread = threading.Thread(target=fldigi_listener, daemon=True)
     listener_thread.start()
     app.run(host="0.0.0.0", port=5000, debug=True)
-
